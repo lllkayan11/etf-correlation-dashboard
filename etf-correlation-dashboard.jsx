@@ -60,15 +60,15 @@ const pearson = (a, b) => {
 };
 
 const CandlestickTooltip = ({active, payload, label}) => {
-  if (!active || !payload?.length) return null;
-  const d = payload[0]?.payload;
+  if (!active || !payload || !payload.length) return null;
+  const d = payload[0] ? payload[0].payload : null;
   if (!d) return null;
   return (
     <div style={{background:"#050c18",border:"1px solid #1a3858",borderRadius:"6px",padding:"10px 14px",fontFamily:"'Syne Mono',monospace",fontSize:"11px"}}>
       <div style={{color:"#4b6070",marginBottom:"6px"}}>{formatDateCN(label)}</div>
-      <div style={{color:"#d1d9e6",marginBottom:"3px"}}>O: <span style={{color:"#8fa8c0"}}>${d.open?.toFixed(2)}</span>  H: <span style={{color:"#22c55e"}}>${d.high?.toFixed(2)}</span></div>
-      <div style={{color:"#d1d9e6",marginBottom:"3px"}}>L: <span style={{color:"#ef4444"}}>${d.low?.toFixed(2)}</span>  C: <span style={{color:"#d1d9e6"}}>${d.close?.toFixed(2)}</span></div>
-      <div style={{color: d.dailyReturn >= 0 ? "#22c55e" : "#ef4444"}}>Return: {d.dailyReturn >= 0 ? "+" : ""}{d.dailyReturn?.toFixed(2)}%</div>
+      <div style={{color:"#d1d9e6",marginBottom:"3px"}}>O: <span style={{color:"#8fa8c0"}}>${d.open != null ? d.open.toFixed(2) : "-"}</span>  H: <span style={{color:"#22c55e"}}>${d.high != null ? d.high.toFixed(2) : "-"}</span></div>
+      <div style={{color:"#d1d9e6",marginBottom:"3px"}}>L: <span style={{color:"#ef4444"}}>${d.low != null ? d.low.toFixed(2) : "-"}</span>  C: <span style={{color:"#d1d9e6"}}>${d.close != null ? d.close.toFixed(2) : "-"}</span></div>
+      <div style={{color: d.dailyReturn >= 0 ? "#22c55e" : "#ef4444"}}>Return: {d.dailyReturn >= 0 ? "+" : ""}{d.dailyReturn != null ? d.dailyReturn.toFixed(2) : "-"}%</div>
     </div>
   );
 };
@@ -94,7 +94,7 @@ export default function App() {
         const raw = await resp.json();
         const byTicker = {};
         ETFS.forEach((e) => {
-          const rows = (raw[e.ticker]?.records || []).map((r, idx, arr) => {
+          const rows = (((raw[e.ticker] || {}).records) || []).map((r, idx, arr) => {
             const prevClose = idx > 0 ? arr[idx-1].close : r.close;
             const ret = prevClose ? ((r.close - prevClose) / prevClose) * 100 : 0;
             return { ...r, dailyReturn: ret };
@@ -148,8 +148,8 @@ export default function App() {
     setChartData(filtered);
   }, [selected, timeRange, priceData]);
 
-  const firstP = chartData[0]?.close || 1;
-  const lastP  = chartData[chartData.length-1]?.close || 1;
+  const firstP = (chartData[0] && chartData[0].close) || 1;
+  const lastP  = (chartData[chartData.length-1] && chartData[chartData.length-1].close) || 1;
   const totalRet = (((lastP - firstP) / firstP) * 100).toFixed(2);
 
   const displayETFs = ETFS.filter(e => visibleETFs.includes(e.id));
@@ -348,7 +348,7 @@ export default function App() {
                 <button key={r} className={`range-btn ${timeRange===r?"on":""}`} onClick={()=>setTimeRange(r)}>{r}</button>
               ))}
               <span style={{marginLeft:"16px",fontFamily:"'Syne Mono',monospace",fontSize:"10px",color:"#1e3a55"}}>
-                {(chartData[0]?.date ? formatDateCN(chartData[0]?.date) : "—")} → {(chartData[chartData.length-1]?.date ? formatDateCN(chartData[chartData.length-1]?.date) : "—")}
+                {(chartData[0] && chartData[0].date ? formatDateCN(chartData[0].date) : "—")} → {(chartData[chartData.length-1] && chartData[chartData.length-1].date ? formatDateCN(chartData[chartData.length-1].date) : "—")}
               </span>
             </div>
 
@@ -388,10 +388,10 @@ export default function App() {
                 </ComposedChart>
               </ResponsiveContainer>
               <div style={{display:"flex",justifyContent:"space-between",marginTop:"12px",fontFamily:"'Syne Mono',monospace",fontSize:"10px",color:"#1e3a55"}}>
-                <span>Open: <span style={{color:"#8fa8c0"}}>${chartData[0]?.open?.toFixed(2)}</span></span>
-                <span>High: <span style={{color:"#22c55e"}}>${Math.max(...chartData.map(d=>d.high||0))?.toFixed(2)}</span></span>
-                <span>Low: <span style={{color:"#ef4444"}}>${Math.min(...chartData.map(d=>d.low||Infinity))?.toFixed(2)}</span></span>
-                <span>Close: <span style={{color:"#d1d9e6"}}>${chartData[chartData.length-1]?.close?.toFixed(2)}</span></span>
+                <span>Open: <span style={{color:"#8fa8c0"}}>${chartData[0] && chartData[0].open != null ? chartData[0].open.toFixed(2) : "-"}</span></span>
+                <span>High: <span style={{color:"#22c55e"}}>${Number.isFinite(Math.max(...chartData.map(d=>d.high||0))) ? Math.max(...chartData.map(d=>d.high||0)).toFixed(2) : "-"}</span></span>
+                <span>Low: <span style={{color:"#ef4444"}}>${Number.isFinite(Math.min(...chartData.map(d=>d.low||Infinity))) ? Math.min(...chartData.map(d=>d.low||Infinity)).toFixed(2) : "-"}</span></span>
+                <span>Close: <span style={{color:"#d1d9e6"}}>${chartData[chartData.length-1] && chartData[chartData.length-1].close != null ? chartData[chartData.length-1].close.toFixed(2) : "-"}</span></span>
               </div>
             </div>
 
