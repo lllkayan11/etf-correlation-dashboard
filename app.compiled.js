@@ -124,6 +124,11 @@ export default function App() {
   const [dataError, setDataError] = useState("");
   const [corrMatrix, setCorrMatrix] = useState(Array.from({ length: ETFS.length }, (_, i) => Array.from({ length: ETFS.length }, (_, j) => i === j ? 1 : 0)));
   const [chartData, setChartData] = useState([]);
+  const [queryInput, setQueryInput] = useState("SPY, GLD");
+  const [queryRange, setQueryRange] = useState("1Y");
+  const [queryLoading, setQueryLoading] = useState(false);
+  const [queryError, setQueryError] = useState("");
+  const [queryResult, setQueryResult] = useState(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -210,6 +215,167 @@ export default function App() {
     return (row.reduce((a, b) => a + b, 0) / row.length).toFixed(3);
   }, [selected, visibleETFs, corrMatrix]);
 
+  const buildReturnsByDate = records => {
+    const sorted = records.slice().sort((a, b) => a.date.localeCompare(b.date));
+    const byDate = {};
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1].close;
+      const curr = sorted[i].close;
+      if (prev && curr) {
+        byDate[sorted[i].date] = (curr - prev) / prev * 100;
+      }
+    }
+    return byDate;
+  };
+
+  const getRangeFrom = range => {
+    const now = new Date();
+    const dt = new Date(now);
+    if (range === "1M") dt.setMonth(now.getMonth() - 1);else if (range === "1Y") dt.setFullYear(now.getFullYear() - 1);else dt.setFullYear(now.getFullYear() - 5);
+    return dt.toISOString().slice(0, 10);
+  };
+
+  const fetchNasdaqTicker = async (ticker, fromDate) => {
+    const classes = ["stocks", "etf"];
+    for (const assetclass of classes) {
+      const url = `https://api.nasdaq.com/api/quote/${ticker}/historical?assetclass=${assetclass}&fromdate=${fromDate}&todate=2099-12-31&limit=10000&offset=0`;
+      const resp = await fetch(url, {
+        headers: {
+          accept: "application/json, text/plain, */*"
+        }
+      });
+      if (!resp.ok) continue;
+      const payload = await resp.json();
+      const rows = (((payload || {}).data || {}).tradesTable || {}).rows || [];
+      if (!rows.length) continue;
+      const records = [];
+      for (const row of rows) {
+        if (!row.date || !row.close) continue;
+        const mdy = row.date.split("/");
+        if (mdy.length !== 3) continue;
+        const yyyy = mdy[2];
+        const mm = mdy[0].padStart(2, "0");
+        const dd = mdy[1].padStart(2, "0");
+        const close = Number(String(row.close).replace(/\$|,/g, ""));
+        if (!Number.isFinite(close)) continue;
+        records.push({ date: `${yyyy}-${mm}-${dd}`, close });
+      }
+      if (records.length >= 10) return records;
+    }
+    throw new Error(`Nasdaq no data for ${ticker}`);
+  };
+
+  const fetchYahooTicker = async (ticker, range) => {
+    const map = { "1M": "1mo", "1Y": "1y", "5Y": "5y" };
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=${map[range] || "1y"}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`Yahoo HTTP ${resp.status}`);
+    const payload = await resp.json();
+    const result = (((payload || {}).chart || {}).result || [])[0] || {};
+    const ts = result.timestamp || [];
+    const closes = ((((result || {}).indicators || {}).quote || [])[0] || {}).close || [];
+    const records = [];
+    for (let i = 0; i < ts.length; i++) {
+      const close = closes[i];
+      if (!Number.isFinite(close)) continue;
+      const date = new Date(ts[i] * 1000).toISOString().slice(0, 10);
+      records.push({ date, close });
+    }
+    if (records.length < 10) throw new Error(`Yahoo no data for ${ticker}`);
+    return records;
+  };
+
+  const runCustomCorrelation = async () => {
+    setQueryError("");
+    setQueryResult(null);
+    const tickers = queryInput.split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
+    const unique = Array.from(new Set(tickers));
+    if (unique.length < 2 || unique.length > 5) {
+      setQueryError("Please enter 2 to 5 symbols, separated by commas.");
+      return;
+    }
+
+    setQueryLoading(true);
+    try {
+      const fromDate = getRangeFrom(queryRange);
+      const seriesByTicker = {};
+      const sourceByTicker = {};
+      for (const t of unique) {
+        const localRows = marketData[t];
+        if (localRows && localRows.length >= 10) {
+          const filteredLocal = localRows.filter(r => r.date >= fromDate).map(r => ({ date: r.date, close: r.close }));
+          if (filteredLocal.length >= 10) {
+            seriesByTicker[t] = filteredLocal;
+            sourceByTicker[t] = "Local Nasdaq cache";
+            continue;
+          }
+        }
+        try {
+          const records = await fetchNasdaqTicker(t, fromDate);
+          seriesByTicker[t] = records;
+          sourceByTicker[t] = "Nasdaq";
+        } catch (e) {
+          try {
+            const records = await fetchYahooTicker(t, queryRange);
+            seriesByTicker[t] = records;
+            sourceByTicker[t] = "Yahoo fallback";
+          } catch (e2) {
+            throw new Error(`Cannot load ${t}. Try symbols from current cache (e.g. SPY, GLD, TLT) or retry later.`);
+          }
+        }
+      }
+
+      const returnsByTicker = {};
+      unique.forEach(t => {
+        returnsByTicker[t] = buildReturnsByDate(seriesByTicker[t]);
+      });
+
+      let commonDates = null;
+      unique.forEach(t => {
+        const keys = Object.keys(returnsByTicker[t]);
+        if (commonDates === null) commonDates = new Set(keys);else commonDates = new Set(keys.filter(d => commonDates.has(d)));
+      });
+      const alignedDates = Array.from(commonDates || []).sort();
+      if (alignedDates.length < 5) {
+        throw new Error("Not enough overlapping dates across symbols.");
+      }
+
+      const matrix = unique.map(() => unique.map(() => 0));
+      for (let i = 0; i < unique.length; i++) {
+        for (let j = 0; j < unique.length; j++) {
+          if (i === j) {
+            matrix[i][j] = 1;
+            continue;
+          }
+          const a = alignedDates.map(d => returnsByTicker[unique[i]][d]);
+          const b = alignedDates.map(d => returnsByTicker[unique[j]][d]);
+          matrix[i][j] = +pearson(a, b).toFixed(3);
+        }
+      }
+
+      let sum = 0;
+      let count = 0;
+      for (let i = 0; i < matrix.length; i++) {
+        for (let j = i + 1; j < matrix.length; j++) {
+          sum += matrix[i][j];
+          count += 1;
+        }
+      }
+      const avg = count ? +(sum / count).toFixed(3) : 0;
+      setQueryResult({
+        tickers: unique,
+        matrix,
+        alignedDates,
+        sourceByTicker,
+        avg
+      });
+    } catch (err) {
+      setQueryError(String(err && err.message ? err.message : err));
+    } finally {
+      setQueryLoading(false);
+    }
+  };
+
   return React.createElement(
     "div",
     { style: { minHeight: "100vh", background: "#030810", color: "#d1d9e6", fontFamily: "'Syne',sans-serif" } },
@@ -259,7 +425,7 @@ export default function App() {
       React.createElement(
         "div",
         { style: { display: "flex", gap: "6px" } },
-        [["matrix", "CORR MATRIX"], ["chart", "PRICE CHART"], ["report", "REPORT"], ["sources", "DATA SOURCES"]].map(([v, l]) => React.createElement(
+        [["matrix", "CORR MATRIX"], ["chart", "PRICE CHART"], ["custom", "CUSTOM CORR"], ["report", "REPORT"], ["sources", "DATA SOURCES"]].map(([v, l]) => React.createElement(
           "button",
           { key: v, className: `nav-tab ${tab === v ? "on" : ""}`, onClick: () => setTab(v) },
           l
@@ -521,6 +687,148 @@ export default function App() {
               d
             )
           ))
+        )
+      ),
+      tab === "custom" && React.createElement(
+        "div",
+        { style: { maxWidth: "980px", margin: "0 auto" } },
+        React.createElement(
+          "div",
+          { style: { background: "#060e1c", border: "1px solid #0a1e32", borderRadius: "12px", padding: "24px" } },
+          React.createElement(
+            "div",
+            { style: { fontFamily: "'Syne Mono',monospace", fontSize: "11px", color: "#22c55e", letterSpacing: ".08em", marginBottom: "10px" } },
+            "CUSTOM CORRELATION QUERY"
+          ),
+          React.createElement(
+            "div",
+            { style: { fontSize: "13px", color: "#7a9ab5", marginBottom: "14px", lineHeight: 1.7 } },
+            "Enter 2-5 symbols (example: ",
+            React.createElement(
+              "span",
+              { style: { color: "#8fb8d8" } },
+              "AAPL, MSFT, NVDA"
+            ),
+            "), select period, then calculate Pearson correlation matrix. Built-in Nasdaq cache symbols (always available): ",
+            React.createElement(
+              "span",
+              { style: { color: "#8fb8d8" } },
+              "SPY, EZU, INDA, KWEB, EWH, GLD, TLT, DBC, VNQ, EWJ"
+            ),
+            "."
+          ),
+          React.createElement(
+            "div",
+            { style: { display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center", marginBottom: "12px" } },
+            React.createElement("input", {
+              value: queryInput,
+              onChange: e => setQueryInput(e.target.value),
+              placeholder: "AAPL, MSFT, NVDA",
+              style: { flex: "1 1 360px", minWidth: "260px", background: "#030810", color: "#d1d9e6", border: "1px solid #1a3858", borderRadius: "6px", padding: "10px 12px", fontFamily: "'Syne Mono',monospace", fontSize: "12px" }
+            }),
+            ["1M", "1Y", "5Y"].map(r => React.createElement(
+              "button",
+              { key: r, className: `range-btn ${queryRange === r ? "on" : ""}`, onClick: () => setQueryRange(r) },
+              r
+            )),
+            React.createElement(
+              "button",
+              { className: "range-btn on", onClick: runCustomCorrelation, disabled: queryLoading, style: { minWidth: "120px" } },
+              queryLoading ? "CALCULATING..." : "CALCULATE"
+            )
+          ),
+          queryError && React.createElement(
+            "div",
+            { style: { marginTop: "8px", fontFamily: "'Syne Mono',monospace", fontSize: "11px", color: "#ef4444" } },
+            queryError
+          ),
+          queryResult && React.createElement(
+            "div",
+            { style: { marginTop: "18px" } },
+            React.createElement(
+              "div",
+              { style: { display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "12px" } },
+              React.createElement(
+                "div",
+                { style: { background: "#030810", border: "1px solid #0a1e32", borderRadius: "8px", padding: "10px 12px", fontFamily: "'Syne Mono',monospace", fontSize: "11px", color: "#8fa8c0" } },
+                "Overlap Days: ",
+                React.createElement(
+                  "span",
+                  { style: { color: "#d1d9e6" } },
+                  queryResult.alignedDates.length
+                )
+              ),
+              React.createElement(
+                "div",
+                { style: { background: "#030810", border: "1px solid #0a1e32", borderRadius: "8px", padding: "10px 12px", fontFamily: "'Syne Mono',monospace", fontSize: "11px", color: "#8fa8c0" } },
+                "Avg Pair Corr: ",
+                React.createElement(
+                  "span",
+                  { style: { color: corrColor(queryResult.avg) } },
+                  queryResult.avg.toFixed(3)
+                )
+              ),
+              React.createElement(
+                "div",
+                { style: { background: "#030810", border: "1px solid #0a1e32", borderRadius: "8px", padding: "10px 12px", fontFamily: "'Syne Mono',monospace", fontSize: "11px", color: "#8fa8c0" } },
+                "Date Range: ",
+                React.createElement(
+                  "span",
+                  { style: { color: "#d1d9e6" } },
+                  queryResult.alignedDates[0],
+                  " \u2192 ",
+                  queryResult.alignedDates[queryResult.alignedDates.length - 1]
+                )
+              )
+            ),
+            React.createElement(
+              "div",
+              { style: { fontFamily: "'Syne Mono',monospace", fontSize: "10px", color: "#1e3a55", letterSpacing: ".1em", marginBottom: "10px" } },
+              "SOURCE: Nasdaq priority (fallback when Nasdaq direct query is blocked)"
+            ),
+            React.createElement(
+              "div",
+              { style: { display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" } },
+              queryResult.tickers.map(t => React.createElement(
+                "div",
+                { key: t, style: { background: "#030810", border: "1px solid #0a1e32", borderRadius: "6px", padding: "8px 10px", fontFamily: "'Syne Mono',monospace", fontSize: "10px", color: "#8fa8c0" } },
+                t,
+                ": ",
+                React.createElement(
+                  "span",
+                  { style: { color: "#d1d9e6" } },
+                  queryResult.sourceByTicker[t]
+                )
+              ))
+            ),
+            React.createElement(
+              "div",
+              { style: { display: "grid", gridTemplateColumns: `80px repeat(${queryResult.tickers.length},1fr)`, gap: "3px", minWidth: `${80 + queryResult.tickers.length * 90}px`, overflowX: "auto" } },
+              React.createElement("div", null),
+              queryResult.tickers.map(t => React.createElement(
+                "div",
+                { key: `h-${t}`, style: { textAlign: "center", fontFamily: "'Syne Mono',monospace", fontSize: "11px", color: "#8fb8d8", padding: "6px 2px" } },
+                t
+              )),
+              queryResult.tickers.map((rTicker, i) => React.createElement(
+                "div",
+                { key: `r-${rTicker}`, style: { display: "contents" } },
+                React.createElement(
+                  "div",
+                  { style: { fontFamily: "'Syne Mono',monospace", fontSize: "11px", color: "#8fb8d8", display: "flex", alignItems: "center", paddingRight: "8px" } },
+                  rTicker
+                ),
+                queryResult.tickers.map((cTicker, j) => {
+                  const v = queryResult.matrix[i][j];
+                  return React.createElement(
+                    "div",
+                    { key: `${rTicker}-${cTicker}`, className: "corr-cell", style: { height: "40px", background: i === j ? "#0a1e32" : corrBg(v), color: i === j ? "#1e3a55" : corrColor(v) } },
+                    i === j ? "—" : v.toFixed(3)
+                  );
+                })
+              ))
+            )
+          )
         )
       ),
       tab === "chart" && React.createElement(
