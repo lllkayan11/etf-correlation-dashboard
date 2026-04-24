@@ -10,6 +10,7 @@ on:
 
 jobs:
   deploy:
+    if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -22,3 +23,10 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: serverless/cloudflare-nasdaq-proxy
           command: deploy
+
+  skip-if-no-secrets:
+    if: ${{ secrets.CLOUDFLARE_API_TOKEN == '' || secrets.CLOUDFLARE_ACCOUNT_ID == '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip deploy when Cloudflare secrets are missing
+        run: echo "Cloudflare secrets are not configured. Skipping proxy deployment."

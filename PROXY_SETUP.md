@@ -28,6 +28,11 @@ This project now supports a Nasdaq-only serverless proxy for custom symbol queri
 - Push `proxy-config.json` update to `main`
 - GitHub Pages picks up the new proxy endpoint automatically
 
+## Note on workflow status
+
+- The `Deploy Nasdaq Proxy` workflow now skips gracefully when Cloudflare secrets are missing.
+- This prevents the repository from showing a failed red workflow after normal dashboard updates.
+
 ## Behavior
 
 - Query order: local Nasdaq cache -> Nasdaq proxy -> direct Nasdaq

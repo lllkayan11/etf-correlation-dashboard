@@ -6,6 +6,7 @@ import dukpy
 BASE_DIR = Path("/Applications/Google Chrome.app/etf-correlation-pages")
 SRC_PATH = BASE_DIR / "etf-correlation-dashboard.jsx"
 OUT_PATH = BASE_DIR / "app.compiled.js"
+OUT_PATH_V2 = BASE_DIR / "app.compiled.v2.js"
 
 
 def main() -> None:
@@ -21,7 +22,9 @@ def main() -> None:
     )
     code = result["code"]
     OUT_PATH.write_text(code, encoding="utf-8")
+    OUT_PATH_V2.write_text(code, encoding="utf-8")
     print(f"Compiled JS written: {OUT_PATH}")
+    print(f"Compiled JS written: {OUT_PATH_V2}")
 
 
 if __name__ == "__main__":
