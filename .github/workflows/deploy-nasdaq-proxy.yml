@@ -2,11 +2,6 @@ name: Deploy Nasdaq Proxy
 
 on:
   workflow_dispatch:
-  push:
-    branches: ["main"]
-    paths:
-      - "serverless/cloudflare-nasdaq-proxy/**"
-      - ".github/workflows/deploy-nasdaq-proxy.yml"
 
 jobs:
   deploy:
