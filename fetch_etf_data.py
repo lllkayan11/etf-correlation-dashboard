@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -39,6 +39,7 @@ def parse_date(mm_dd_yyyy):
 
 ROOT = Path(__file__).resolve().parent
 OUTPUT_PATH = ROOT / "etf_daily_data_nasdaq.json"
+SUMMARY_PATH = ROOT / "daily_refresh_summary.json"
 
 all_data = {}
 
@@ -100,3 +101,67 @@ with OUTPUT_PATH.open("w", encoding="utf-8") as f:
 
 print(f"\nData saved to {OUTPUT_PATH}")
 print(f"Total ETFs: {len(all_data)}")
+
+# Build refresh summary for notification/reporting
+summary_rows = []
+anomalies = []
+latest_dates = []
+
+for ticker in tickers_info.keys():
+    entry = all_data.get(ticker)
+    if not entry or not entry.get("records"):
+        anomalies.append(f"{ticker}: no records returned from Nasdaq")
+        summary_rows.append(
+            {
+                "ticker": ticker,
+                "latest_date": None,
+                "latest_close": None,
+                "record_count": 0,
+                "status": "error",
+            }
+        )
+        continue
+
+    latest = entry["records"][-1]
+    latest_date = latest["date"]
+    latest_close = latest["close"]
+    latest_dates.append(latest_date)
+
+    status = "ok"
+    if latest_close is None or latest_close <= 0:
+        status = "warning"
+        anomalies.append(f"{ticker}: invalid latest close ({latest_close})")
+
+    summary_rows.append(
+        {
+            "ticker": ticker,
+            "latest_date": latest_date,
+            "latest_close": latest_close,
+            "record_count": len(entry["records"]),
+            "status": status,
+        }
+    )
+
+global_latest = max(latest_dates) if latest_dates else None
+for row in summary_rows:
+    if row["latest_date"] and global_latest and row["latest_date"] < global_latest:
+        row["status"] = "warning"
+        anomalies.append(
+            f"{row['ticker']}: latest date {row['latest_date']} is behind global latest {global_latest}"
+        )
+
+summary = {
+    "run_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+    "latest_trading_date": global_latest,
+    "tickers": summary_rows,
+    "anomalies": sorted(set(anomalies)),
+}
+
+with SUMMARY_PATH.open("w", encoding="utf-8") as f:
+    json.dump(summary, f, indent=2, ensure_ascii=False)
+
+print(f"Summary saved to {SUMMARY_PATH}")
+if summary["anomalies"]:
+    print("Anomalies:")
+    for item in summary["anomalies"]:
+        print(f"  - {item}")

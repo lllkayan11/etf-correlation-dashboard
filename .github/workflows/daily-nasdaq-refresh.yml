@@ -32,11 +32,55 @@ jobs:
       - name: Rebuild compiled bundle
         run: python compile_jsx.py
 
+      - name: Publish refresh summary
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary_path = Path("daily_refresh_summary.json")
+          if not summary_path.exists():
+            print("Summary file not found.")
+            raise SystemExit(1)
+
+          data = json.loads(summary_path.read_text(encoding="utf-8"))
+          out = os.environ.get("GITHUB_STEP_SUMMARY")
+          if not out:
+            raise SystemExit("GITHUB_STEP_SUMMARY is missing")
+
+          lines = []
+          lines.append("## Daily Nasdaq Refresh Summary")
+          lines.append(f"- Run (UTC): `{data.get('run_utc', 'N/A')}`")
+          lines.append(f"- Latest Trading Date: `{data.get('latest_trading_date', 'N/A')}`")
+          lines.append("")
+          lines.append("| Ticker | Latest Date | Latest Close | Status |")
+          lines.append("|---|---|---:|---|")
+          for row in data.get("tickers", []):
+            close = row.get("latest_close")
+            close_text = f\"{close:.2f}\" if isinstance(close, (int, float)) else "N/A"
+            lines.append(
+              f"| {row.get('ticker','')} | {row.get('latest_date','N/A')} | {close_text} | {row.get('status','')} |"
+            )
+
+          anomalies = data.get("anomalies", [])
+          lines.append("")
+          if anomalies:
+            lines.append("### Anomalies")
+            for item in anomalies:
+              lines.append(f"- {item}")
+          else:
+            lines.append("### Anomalies")
+            lines.append("- None")
+
+          Path(out).write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+          PY
+
       - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add etf_daily_data_nasdaq.json app.compiled.js
+          git add etf_daily_data_nasdaq.json daily_refresh_summary.json app.compiled.js
           if git diff --cached --quiet; then
             echo "No data changes to commit."
             exit 0

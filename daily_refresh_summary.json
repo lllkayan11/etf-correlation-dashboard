@@ -1,0 +1,77 @@
+{
+  "run_utc": "2026-04-24 15:11:39",
+  "latest_trading_date": "2026-04-23",
+  "tickers": [
+    {
+      "ticker": "SPY",
+      "latest_date": "2026-04-23",
+      "latest_close": 708.45,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "EZU",
+      "latest_date": "2026-04-23",
+      "latest_close": 65.96,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "INDA",
+      "latest_date": "2026-04-23",
+      "latest_close": 49.41,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "KWEB",
+      "latest_date": "2026-04-23",
+      "latest_close": 28.43,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "EWH",
+      "latest_date": "2026-04-23",
+      "latest_close": 23.26,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "GLD",
+      "latest_date": "2026-04-23",
+      "latest_close": 431.04,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "TLT",
+      "latest_date": "2026-04-23",
+      "latest_close": 86.55,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "DBC",
+      "latest_date": "2026-04-23",
+      "latest_close": 29.89,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "VNQ",
+      "latest_date": "2026-04-23",
+      "latest_close": 95.49,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "EWJ",
+      "latest_date": "2026-04-23",
+      "latest_close": 87.07,
+      "record_count": 1837,
+      "status": "ok"
+    }
+  ],
+  "anomalies": []
+}
