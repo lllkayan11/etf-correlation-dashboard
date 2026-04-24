@@ -29,8 +29,14 @@ jobs:
       - name: Refresh Nasdaq data
         run: python fetch_etf_data.py
 
+      - name: Refresh Nasdaq symbol lookup
+        run: python fetch_nasdaq_symbol_lookup.py
+
       - name: Rebuild compiled bundle
         run: python compile_jsx.py
+
+      - name: Verify Nasdaq data integrity
+        run: python verify_nasdaq_data.py
 
       - name: Publish refresh summary
         run: |
@@ -80,7 +86,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add etf_daily_data_nasdaq.json daily_refresh_summary.json app.compiled.js
+          git add etf_daily_data_nasdaq.json nasdaq_symbol_lookup.json daily_refresh_summary.json nasdaq_data_verification_report.json app.compiled.js
           if git diff --cached --quiet; then
             echo "No data changes to commit."
             exit 0

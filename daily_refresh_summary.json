@@ -1,5 +1,5 @@
 {
-  "run_utc": "2026-04-24 15:11:39",
+  "run_utc": "2026-04-24 16:40:57",
   "latest_trading_date": "2026-04-23",
   "tickers": [
     {
@@ -69,6 +69,83 @@
       "ticker": "EWJ",
       "latest_date": "2026-04-23",
       "latest_close": 87.07,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "DNUT",
+      "latest_date": "2026-04-23",
+      "latest_close": 3.82,
+      "record_count": 1208,
+      "status": "ok"
+    },
+    {
+      "ticker": "AAPL",
+      "latest_date": "2026-04-23",
+      "latest_close": 273.43,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "MSFT",
+      "latest_date": "2026-04-23",
+      "latest_close": 415.75,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "NVDA",
+      "latest_date": "2026-04-23",
+      "latest_close": 199.64,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "AMZN",
+      "latest_date": "2026-04-23",
+      "latest_close": 255.08,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "GOOGL",
+      "latest_date": "2026-04-23",
+      "latest_close": 338.89,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "META",
+      "latest_date": "2026-04-23",
+      "latest_close": 659.15,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "TSLA",
+      "latest_date": "2026-04-23",
+      "latest_close": 373.72,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "NFLX",
+      "latest_date": "2026-04-23",
+      "latest_close": 92.82,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "AMD",
+      "latest_date": "2026-04-23",
+      "latest_close": 305.33,
+      "record_count": 1837,
+      "status": "ok"
+    },
+    {
+      "ticker": "INTC",
+      "latest_date": "2026-04-23",
+      "latest_close": 66.78,
       "record_count": 1837,
       "status": "ok"
     }

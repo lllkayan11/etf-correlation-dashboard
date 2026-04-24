@@ -129,6 +129,10 @@ export default function App() {
   const [queryLoading, setQueryLoading] = useState(false);
   const [queryError, setQueryError] = useState("");
   const [queryResult, setQueryResult] = useState(null);
+  const [symbolLookup, setSymbolLookup] = useState([]);
+  const [symbolLookupMap, setSymbolLookupMap] = useState({});
+  const [queryResolved, setQueryResolved] = useState([]);
+  const [proxyBaseUrl, setProxyBaseUrl] = useState("");
 
   useEffect(() => {
     const loadData = async () => {
@@ -137,13 +141,13 @@ export default function App() {
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const raw = await resp.json();
         const byTicker = {};
-        ETFS.forEach(e => {
-          const rows = ((raw[e.ticker] || {}).records || []).map((r, idx, arr) => {
+        Object.keys(raw || {}).forEach(ticker => {
+          const rows = ((raw[ticker] || {}).records || []).map((r, idx, arr) => {
             const prevClose = idx > 0 ? arr[idx - 1].close : r.close;
             const ret = prevClose ? (r.close - prevClose) / prevClose * 100 : 0;
             return _extends({}, r, { dailyReturn: ret });
           });
-          byTicker[e.ticker] = rows;
+          byTicker[ticker] = rows;
         });
         setMarketData(byTicker);
 
@@ -155,8 +159,8 @@ export default function App() {
               matrix[i][j] = 1;
               return;
             }
-            const mapA = new Map(byTicker[a.ticker].map(r => [r.date, r.dailyReturn]));
-            const mapB = new Map(byTicker[b.ticker].map(r => [r.date, r.dailyReturn]));
+            const mapA = new Map((byTicker[a.ticker] || []).map(r => [r.date, r.dailyReturn]));
+            const mapB = new Map((byTicker[b.ticker] || []).map(r => [r.date, r.dailyReturn]));
             const common = [];
             const bVals = [];
             mapA.forEach((v, d) => {
@@ -178,10 +182,54 @@ export default function App() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    const loadSymbolLookup = async () => {
+      try {
+        const resp = await fetch("./nasdaq_symbol_lookup.json");
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const raw = await resp.json();
+        const rows = Array.isArray(raw) ? raw : [];
+        const cleaned = rows.filter(r => r && r.symbol).map(r => ({
+          symbol: String(r.symbol).toUpperCase(),
+          name: String(r.name || "").trim()
+        }));
+        const bySymbol = {};
+        cleaned.forEach(r => {
+          bySymbol[r.symbol] = r;
+        });
+        setSymbolLookup(cleaned);
+        setSymbolLookupMap(bySymbol);
+      } catch (err) {
+        const fallback = ETFS.map(e => ({ symbol: e.ticker, name: e.name }));
+        const bySymbol = {};
+        fallback.forEach(r => {
+          bySymbol[r.symbol] = r;
+        });
+        setSymbolLookup(fallback);
+        setSymbolLookupMap(bySymbol);
+      }
+    };
+    loadSymbolLookup();
+  }, []);
+
+  useEffect(() => {
+    const loadProxyConfig = async () => {
+      try {
+        const resp = await fetch("./proxy-config.json");
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const url = String((data || {}).nasdaqProxyBaseUrl || "").trim();
+        if (url) setProxyBaseUrl(url.replace(/\/+$/, ""));
+      } catch (err) {
+        // Keep empty proxy URL when config is not provided.
+      }
+    };
+    loadProxyConfig();
+  }, []);
+
   const priceData = useMemo(() => marketData[selected.ticker] || [], [marketData, selected]);
   const dataSummary = useMemo(() => {
-    const base = marketData.SPY || {};
-    const records = base.records || [];
+    const records = marketData.SPY || [];
     const first = records.length > 0 ? records[0].date : "2019-01-02";
     const last = records.length > 0 ? records[records.length - 1].date : "N/A";
     const yearStart = first.slice(0, 4);
@@ -235,6 +283,23 @@ export default function App() {
     return dt.toISOString().slice(0, 10);
   };
 
+  const parseNasdaqRows = rows => {
+    const records = [];
+    for (const row of rows || []) {
+      if (!row || !row.date || !row.close) continue;
+      const mdy = String(row.date).split("/");
+      if (mdy.length !== 3) continue;
+      const yyyy = mdy[2];
+      const mm = mdy[0].padStart(2, "0");
+      const dd = mdy[1].padStart(2, "0");
+      const close = Number(String(row.close).replace(/\$|,/g, ""));
+      if (!Number.isFinite(close)) continue;
+      records.push({ date: `${yyyy}-${mm}-${dd}`, close });
+    }
+    records.sort((a, b) => a.date.localeCompare(b.date));
+    return records;
+  };
+
   const fetchNasdaqTicker = async (ticker, fromDate) => {
     const classes = ["stocks", "etf"];
     for (const assetclass of classes) {
@@ -247,51 +312,81 @@ export default function App() {
       if (!resp.ok) continue;
       const payload = await resp.json();
       const rows = (((payload || {}).data || {}).tradesTable || {}).rows || [];
-      if (!rows.length) continue;
-      const records = [];
-      for (const row of rows) {
-        if (!row.date || !row.close) continue;
-        const mdy = row.date.split("/");
-        if (mdy.length !== 3) continue;
-        const yyyy = mdy[2];
-        const mm = mdy[0].padStart(2, "0");
-        const dd = mdy[1].padStart(2, "0");
-        const close = Number(String(row.close).replace(/\$|,/g, ""));
-        if (!Number.isFinite(close)) continue;
-        records.push({ date: `${yyyy}-${mm}-${dd}`, close });
-      }
+      const records = parseNasdaqRows(rows);
       if (records.length >= 10) return records;
     }
     throw new Error(`Nasdaq no data for ${ticker}`);
   };
 
-  const fetchYahooTicker = async (ticker, range) => {
-    const map = { "1M": "1mo", "1Y": "1y", "5Y": "5y" };
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=${map[range] || "1y"}`;
+  const fetchNasdaqViaProxy = async (ticker, fromDate) => {
+    if (!proxyBaseUrl) throw new Error("Proxy URL not configured");
+    const qs = new URLSearchParams({ symbol: ticker, fromdate: fromDate });
+    const url = `${proxyBaseUrl}/historical?${qs.toString()}`;
     const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`Yahoo HTTP ${resp.status}`);
+    if (!resp.ok) throw new Error(`Proxy HTTP ${resp.status}`);
     const payload = await resp.json();
-    const result = (((payload || {}).chart || {}).result || [])[0] || {};
-    const ts = result.timestamp || [];
-    const closes = ((((result || {}).indicators || {}).quote || [])[0] || {}).close || [];
-    const records = [];
-    for (let i = 0; i < ts.length; i++) {
-      const close = closes[i];
-      if (!Number.isFinite(close)) continue;
-      const date = new Date(ts[i] * 1000).toISOString().slice(0, 10);
-      records.push({ date, close });
-    }
-    if (records.length < 10) throw new Error(`Yahoo no data for ${ticker}`);
+    const rows = payload && payload.rows || [];
+    const records = parseNasdaqRows(rows);
+    if (records.length < 10) throw new Error(`Proxy no data for ${ticker}`);
     return records;
+  };
+
+  const resolveQuerySymbols = rawInput => {
+    const tokens = rawInput.split(",").map(s => s.trim()).filter(Boolean);
+
+    const resolved = [];
+    const unresolved = [];
+
+    tokens.forEach(token => {
+      const upper = token.toUpperCase();
+      if (symbolLookupMap[upper]) {
+        resolved.push({ input: token, symbol: upper, name: symbolLookupMap[upper].name });
+        return;
+      }
+
+      const lower = token.toLowerCase();
+      const exact = symbolLookup.find(r => r.name.toLowerCase() === lower);
+      if (exact) {
+        resolved.push({ input: token, symbol: exact.symbol, name: exact.name });
+        return;
+      }
+
+      const fuzzy = symbolLookup.find(r => r.name.toLowerCase().includes(lower));
+      if (fuzzy) {
+        resolved.push({ input: token, symbol: fuzzy.symbol, name: fuzzy.name });
+        return;
+      }
+
+      if (/^[A-Za-z.\-]{1,10}$/.test(token)) {
+        resolved.push({ input: token, symbol: upper, name: "" });
+      } else {
+        unresolved.push(token);
+      }
+    });
+
+    const uniqueBySymbol = [];
+    const seen = new Set();
+    resolved.forEach(r => {
+      if (seen.has(r.symbol)) return;
+      seen.add(r.symbol);
+      uniqueBySymbol.push(r);
+    });
+
+    return { resolved: uniqueBySymbol, unresolved };
   };
 
   const runCustomCorrelation = async () => {
     setQueryError("");
     setQueryResult(null);
-    const tickers = queryInput.split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
-    const unique = Array.from(new Set(tickers));
+    const parsed = resolveQuerySymbols(queryInput);
+    if (parsed.unresolved.length > 0) {
+      setQueryError(`Cannot resolve input: ${parsed.unresolved.join(", ")}`);
+      return;
+    }
+    const unique = parsed.resolved.map(r => r.symbol);
+    setQueryResolved(parsed.resolved);
     if (unique.length < 2 || unique.length > 5) {
-      setQueryError("Please enter 2 to 5 symbols, separated by commas.");
+      setQueryError("Please enter 2 to 5 symbols (ticker or company name), separated by commas.");
       return;
     }
 
@@ -311,16 +406,16 @@ export default function App() {
           }
         }
         try {
-          const records = await fetchNasdaqTicker(t, fromDate);
+          const records = await fetchNasdaqViaProxy(t, fromDate);
           seriesByTicker[t] = records;
-          sourceByTicker[t] = "Nasdaq";
+          sourceByTicker[t] = "Nasdaq via proxy";
         } catch (e) {
           try {
-            const records = await fetchYahooTicker(t, queryRange);
+            const records = await fetchNasdaqTicker(t, fromDate);
             seriesByTicker[t] = records;
-            sourceByTicker[t] = "Yahoo fallback";
+            sourceByTicker[t] = "Nasdaq direct";
           } catch (e2) {
-            throw new Error(`Cannot load ${t}. Try symbols from current cache (e.g. SPY, GLD, TLT) or retry later.`);
+            throw new Error(`Cannot load ${t} from Nasdaq. Try another symbol or retry later.`);
           }
         }
       }
@@ -703,11 +798,11 @@ export default function App() {
           React.createElement(
             "div",
             { style: { fontSize: "13px", color: "#7a9ab5", marginBottom: "14px", lineHeight: 1.7 } },
-            "Enter 2-5 symbols (example: ",
+            "Enter 2-5 tickers or company names (example: ",
             React.createElement(
               "span",
               { style: { color: "#8fb8d8" } },
-              "AAPL, MSFT, NVDA"
+              "AAPL, Microsoft, NVIDIA"
             ),
             "), select period, then calculate Pearson correlation matrix. Built-in Nasdaq cache symbols (always available): ",
             React.createElement(
@@ -722,7 +817,9 @@ export default function App() {
             { style: { display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center", marginBottom: "12px" } },
             React.createElement("input", {
               value: queryInput,
-              onChange: e => setQueryInput(e.target.value),
+              onChange: e => {
+                setQueryInput(e.target.value);setQueryResolved([]);
+              },
               placeholder: "AAPL, MSFT, NVDA",
               style: { flex: "1 1 360px", minWidth: "260px", background: "#030810", color: "#d1d9e6", border: "1px solid #1a3858", borderRadius: "6px", padding: "10px 12px", fontFamily: "'Syne Mono',monospace", fontSize: "12px" }
             }),
@@ -736,6 +833,27 @@ export default function App() {
               { className: "range-btn on", onClick: runCustomCorrelation, disabled: queryLoading, style: { minWidth: "120px" } },
               queryLoading ? "CALCULATING..." : "CALCULATE"
             )
+          ),
+          queryResolved.length > 0 && React.createElement(
+            "div",
+            { style: { marginTop: "8px", fontFamily: "'Syne Mono',monospace", fontSize: "10px", color: "#8fa8c0", display: "flex", gap: "8px", flexWrap: "wrap" } },
+            React.createElement(
+              "span",
+              { style: { color: "#1e3a55" } },
+              "RESOLVED INPUT:"
+            ),
+            queryResolved.map(r => React.createElement(
+              "span",
+              { key: `${r.input}-${r.symbol}`, style: { background: "#030810", border: "1px solid #0a1e32", borderRadius: "4px", padding: "3px 6px" } },
+              r.input,
+              " \u2192 ",
+              React.createElement(
+                "span",
+                { style: { color: "#8fb8d8" } },
+                r.symbol
+              ),
+              r.name ? ` (${r.name})` : ""
+            ))
           ),
           queryError && React.createElement(
             "div",
@@ -784,7 +902,7 @@ export default function App() {
             React.createElement(
               "div",
               { style: { fontFamily: "'Syne Mono',monospace", fontSize: "10px", color: "#1e3a55", letterSpacing: ".1em", marginBottom: "10px" } },
-              "SOURCE: Nasdaq priority (fallback when Nasdaq direct query is blocked)"
+              "SOURCE: Nasdaq only (local cache \u2192 serverless proxy \u2192 direct Nasdaq)"
             ),
             React.createElement(
               "div",

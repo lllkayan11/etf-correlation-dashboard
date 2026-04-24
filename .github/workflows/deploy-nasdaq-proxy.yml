@@ -1,0 +1,24 @@
+name: Deploy Nasdaq Proxy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "serverless/cloudflare-nasdaq-proxy/**"
+      - ".github/workflows/deploy-nasdaq-proxy.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: serverless/cloudflare-nasdaq-proxy
+          command: deploy

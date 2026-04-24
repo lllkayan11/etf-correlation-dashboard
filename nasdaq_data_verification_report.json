@@ -1,0 +1,15 @@
+{
+  "sample_symbols": [
+    "AMD",
+    "EWJ",
+    "META",
+    "SPY",
+    "VNQ",
+    "GOOGL",
+    "TLT",
+    "EZU"
+  ],
+  "total_checks": 40,
+  "failed_checks": 0,
+  "failures": []
+}
