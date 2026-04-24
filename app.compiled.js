@@ -174,6 +174,20 @@ export default function App() {
   }, []);
 
   const priceData = useMemo(() => marketData[selected.ticker] || [], [marketData, selected]);
+  const dataSummary = useMemo(() => {
+    const base = marketData.SPY || {};
+    const records = base.records || [];
+    const first = records.length > 0 ? records[0].date : "2019-01-02";
+    const last = records.length > 0 ? records[records.length - 1].date : "N/A";
+    const yearStart = first.slice(0, 4);
+    const yearEnd = last !== "N/A" ? last.slice(0, 4) : "N/A";
+    return {
+      firstDate: first,
+      lastDate: last,
+      tradingDays: records.length || 0,
+      yearRange: `${yearStart}–${yearEnd}`
+    };
+  }, [marketData]);
 
   useEffect(() => {
     const today = new Date();
@@ -238,7 +252,8 @@ export default function App() {
         React.createElement(
           "div",
           { style: { fontFamily: "'Syne Mono',monospace", fontSize: "10px", color: "#1e4060", marginTop: "2px", letterSpacing: ".08em" } },
-          "10 GLOBALLY DIVERSIFIED ETFs \xB7 DAILY OHLC DATA \xB7 2019\u20132026"
+          "10 GLOBALLY DIVERSIFIED ETFs \xB7 DAILY OHLC DATA \xB7 ",
+          dataSummary.yearRange
         )
       ),
       React.createElement(
@@ -374,7 +389,9 @@ export default function App() {
             React.createElement(
               "span",
               null,
-              "CORRELATION MATRIX \u2014 DAILY RETURN BASIS (2019\u20132026)"
+              "CORRELATION MATRIX \u2014 DAILY RETURN BASIS (",
+              dataSummary.yearRange,
+              ")"
             ),
             React.createElement(
               "div",
@@ -490,7 +507,7 @@ export default function App() {
         React.createElement(
           "div",
           { style: { marginTop: "20px", display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: "10px" } },
-          [["10 Asset Classes", "US Equity (SPY,VNQ), Europe (EZU), India (INDA), China (KWEB), HK (EWH), Gold (GLD), Bonds (TLT), Commodities (DBC), Japan (EWJ)"], ["6 Geographic Regions", "US, Eurozone, India, China/HK, Japan, Global — each with distinct macro cycles"], ["Daily Return Correlation", "Computed from Nasdaq daily OHLC data (2019-01-02 to 2026-04-22)."], ["Policy Divergence", "Fed, ECB, RBI, PBOC, BOJ — 5 central banks, 5 policy cycles"]].map(([t, d]) => React.createElement(
+          [["10 Asset Classes", "US Equity (SPY,VNQ), Europe (EZU), India (INDA), China (KWEB), HK (EWH), Gold (GLD), Bonds (TLT), Commodities (DBC), Japan (EWJ)"], ["6 Geographic Regions", "US, Eurozone, India, China/HK, Japan, Global — each with distinct macro cycles"], ["Daily Return Correlation", `Computed from Nasdaq daily OHLC data (${dataSummary.firstDate} to ${dataSummary.lastDate}).`], ["Policy Divergence", "Fed, ECB, RBI, PBOC, BOJ — 5 central banks, 5 policy cycles"]].map(([t, d]) => React.createElement(
             "div",
             { key: t, style: { background: "#060e1c", border: "1px solid #0a1e32", borderRadius: "8px", padding: "14px" } },
             React.createElement(
@@ -726,7 +743,11 @@ export default function App() {
           React.createElement(
             "div",
             { style: { fontFamily: "'Syne Mono',monospace", fontSize: "11px", color: "#2d4a65", marginBottom: "32px", paddingBottom: "24px", borderBottom: "1px solid #0a1e32" } },
-            "Prepared for: Portfolio Strategy Review \xA0|\xA0 Date: April 2026 \xA0|\xA0 Data: Nasdaq Daily OHLC (2019-01-02 to 2026-04-22)"
+            "Prepared for: Portfolio Strategy Review \xA0|\xA0 Date: April 2026 \xA0|\xA0 Data: Nasdaq Daily OHLC (",
+            dataSummary.firstDate,
+            " to ",
+            dataSummary.lastDate,
+            ")"
           ),
           React.createElement(
             "div",
@@ -892,19 +913,20 @@ export default function App() {
               React.createElement(
                 "strong",
                 { style: { color: "#d1d9e6" } },
-                "1,836 trading days"
+                dataSummary.tradingDays,
+                " trading days"
               ),
               " from ",
               React.createElement(
                 "strong",
                 { style: { color: "#d1d9e6" } },
-                "2019-01-02"
+                dataSummary.firstDate
               ),
               " to ",
               React.createElement(
                 "strong",
                 { style: { color: "#d1d9e6" } },
-                "2026-04-22"
+                dataSummary.lastDate
               ),
               ". Tooltip and chart both display precise daily date values."
             )

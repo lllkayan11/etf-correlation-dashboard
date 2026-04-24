@@ -14693,12 +14693,20 @@
         "low": 708.22,
         "close": 711.21,
         "volume": 42518500
+      },
+      {
+        "date": "2026-04-23",
+        "open": 709.5,
+        "high": 712.3598,
+        "low": 702.2803,
+        "close": 708.45,
+        "volume": 56173990
       }
     ],
     "start_price": 250.18,
-    "end_price": 711.21,
-    "total_return": 184.28,
-    "latest_date": "2026-04-22"
+    "end_price": 708.45,
+    "total_return": 183.18,
+    "latest_date": "2026-04-23"
   },
   "EZU": {
     "info": {
@@ -29394,12 +29402,20 @@
         "low": 66.255,
         "close": 66.56,
         "volume": 1829059
+      },
+      {
+        "date": "2026-04-23",
+        "open": 66.38,
+        "high": 66.67,
+        "low": 65.21,
+        "close": 65.96,
+        "volume": 2422578
       }
     ],
     "start_price": 34.885,
-    "end_price": 66.56,
-    "total_return": 90.8,
-    "latest_date": "2026-04-22"
+    "end_price": 65.96,
+    "total_return": 89.08,
+    "latest_date": "2026-04-23"
   },
   "INDA": {
     "info": {
@@ -44095,12 +44111,20 @@
         "low": 49.88,
         "close": 49.98,
         "volume": 5765799
+      },
+      {
+        "date": "2026-04-23",
+        "open": 49.67,
+        "high": 50.14,
+        "low": 49.11,
+        "close": 49.41,
+        "volume": 6991302
       }
     ],
     "start_price": 32.94,
-    "end_price": 49.98,
-    "total_return": 51.73,
-    "latest_date": "2026-04-22"
+    "end_price": 49.41,
+    "total_return": 50.0,
+    "latest_date": "2026-04-23"
   },
   "KWEB": {
     "info": {
@@ -58796,12 +58820,20 @@
         "low": 29.16,
         "close": 29.23,
         "volume": 23540440
+      },
+      {
+        "date": "2026-04-23",
+        "open": 28.87,
+        "high": 28.9,
+        "low": 28.13,
+        "close": 28.43,
+        "volume": 40940600
       }
     ],
     "start_price": 37.53,
-    "end_price": 29.23,
-    "total_return": -22.12,
-    "latest_date": "2026-04-22"
+    "end_price": 28.43,
+    "total_return": -24.25,
+    "latest_date": "2026-04-23"
   },
   "EWH": {
     "info": {
@@ -73497,12 +73529,20 @@
         "low": 23.4509,
         "close": 23.5,
         "volume": 2456530
+      },
+      {
+        "date": "2026-04-23",
+        "open": 23.4,
+        "high": 23.4151,
+        "low": 23.105,
+        "close": 23.26,
+        "volume": 3138091
       }
     ],
     "start_price": 22.33,
-    "end_price": 23.5,
-    "total_return": 5.24,
-    "latest_date": "2026-04-22"
+    "end_price": 23.26,
+    "total_return": 4.16,
+    "latest_date": "2026-04-23"
   },
   "GLD": {
     "info": {
@@ -88198,12 +88238,20 @@
         "low": 433.78,
         "close": 435.26,
         "volume": 5178054
+      },
+      {
+        "date": "2026-04-23",
+        "open": 433.96,
+        "high": 435.2913,
+        "low": 428.22,
+        "close": 431.04,
+        "volume": 4976399
       }
     ],
     "start_price": 121.33,
-    "end_price": 435.26,
-    "total_return": 258.74,
-    "latest_date": "2026-04-22"
+    "end_price": 431.04,
+    "total_return": 255.26,
+    "latest_date": "2026-04-23"
   },
   "TLT": {
     "info": {
@@ -102899,12 +102947,20 @@
         "low": 86.705,
         "close": 86.74,
         "volume": 13676820
+      },
+      {
+        "date": "2026-04-23",
+        "open": 86.825,
+        "high": 87.04,
+        "low": 86.24,
+        "close": 86.55,
+        "volume": 21106670
       }
     ],
     "start_price": 122.15,
-    "end_price": 86.74,
-    "total_return": -28.99,
-    "latest_date": "2026-04-22"
+    "end_price": 86.55,
+    "total_return": -29.14,
+    "latest_date": "2026-04-23"
   },
   "DBC": {
     "info": {
@@ -117600,12 +117656,20 @@
         "low": 29.33,
         "close": 29.51,
         "volume": 1232901
+      },
+      {
+        "date": "2026-04-23",
+        "open": 29.52,
+        "high": 30.04,
+        "low": 29.5,
+        "close": 29.89,
+        "volume": 1074291
       }
     ],
     "start_price": 14.53,
-    "end_price": 29.51,
-    "total_return": 103.1,
-    "latest_date": "2026-04-22"
+    "end_price": 29.89,
+    "total_return": 105.71,
+    "latest_date": "2026-04-23"
   },
   "VNQ": {
     "info": {
@@ -132301,12 +132365,20 @@
         "low": 94.13,
         "close": 94.52,
         "volume": 2708774
+      },
+      {
+        "date": "2026-04-23",
+        "open": 94.86,
+        "high": 95.555,
+        "low": 94.51,
+        "close": 95.49,
+        "volume": 3437912
       }
     ],
     "start_price": 72.95,
-    "end_price": 94.52,
-    "total_return": 29.57,
-    "latest_date": "2026-04-22"
+    "end_price": 95.49,
+    "total_return": 30.9,
+    "latest_date": "2026-04-23"
   },
   "EWJ": {
     "info": {
@@ -147002,11 +147074,19 @@
         "low": 87.38,
         "close": 87.76,
         "volume": 3590504
+      },
+      {
+        "date": "2026-04-23",
+        "open": 87.49,
+        "high": 87.795,
+        "low": 86.12,
+        "close": 87.07,
+        "volume": 5174786
       }
     ],
     "start_price": 51.04,
-    "end_price": 87.76,
-    "total_return": 71.94,
-    "latest_date": "2026-04-22"
+    "end_price": 87.07,
+    "total_return": 70.59,
+    "latest_date": "2026-04-23"
   }
 }

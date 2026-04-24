@@ -135,6 +135,20 @@ export default function App() {
   }, []);
 
   const priceData = useMemo(() => marketData[selected.ticker] || [], [marketData, selected]);
+  const dataSummary = useMemo(() => {
+    const base = marketData.SPY || {};
+    const records = base.records || [];
+    const first = records.length > 0 ? records[0].date : "2019-01-02";
+    const last = records.length > 0 ? records[records.length - 1].date : "N/A";
+    const yearStart = first.slice(0, 4);
+    const yearEnd = last !== "N/A" ? last.slice(0, 4) : "N/A";
+    return {
+      firstDate: first,
+      lastDate: last,
+      tradingDays: records.length || 0,
+      yearRange: `${yearStart}–${yearEnd}`,
+    };
+  }, [marketData]);
 
   useEffect(() => {
     const today = new Date();
@@ -188,7 +202,7 @@ export default function App() {
       <div style={{borderBottom:"1px solid #0a1a2e",padding:"16px 28px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,background:"rgba(3,8,16,.97)",zIndex:20}}>
         <div>
           <div style={{fontWeight:800,fontSize:"20px",letterSpacing:".02em",color:"#f0f6ff"}}>ETF CORRELATION ANALYSIS</div>
-          <div style={{fontFamily:"'Syne Mono',monospace",fontSize:"10px",color:"#1e4060",marginTop:"2px",letterSpacing:".08em"}}>10 GLOBALLY DIVERSIFIED ETFs · DAILY OHLC DATA · 2019–2026</div>
+          <div style={{fontFamily:"'Syne Mono',monospace",fontSize:"10px",color:"#1e4060",marginTop:"2px",letterSpacing:".08em"}}>10 GLOBALLY DIVERSIFIED ETFs · DAILY OHLC DATA · {dataSummary.yearRange}</div>
         </div>
         <div style={{display:"flex",gap:"6px"}}>
           {[["matrix","CORR MATRIX"],["chart","PRICE CHART"],["report","REPORT"],["sources","DATA SOURCES"]].map(([v,l])=>(
@@ -254,7 +268,7 @@ export default function App() {
               </div>
 
               <div style={{fontFamily:"'Syne Mono',monospace",fontSize:"10px",color:"#1e3a55",letterSpacing:".1em",marginBottom:"20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:"10px"}}>
-                <span>CORRELATION MATRIX — DAILY RETURN BASIS (2019–2026)</span>
+                <span>CORRELATION MATRIX — DAILY RETURN BASIS ({dataSummary.yearRange})</span>
                 <div style={{display:"flex",gap:"10px",fontSize:"9px",flexWrap:"wrap"}}>
                   {[["≥0.7","#dc2626"],["0.5–0.7","#f97316"],["0.3–0.5","#eab308"],["0.1–0.3","#84cc16"],["<0.1","#22c55e"]].map(([r,c])=>(
                     <span key={r} style={{display:"flex",alignItems:"center",gap:"4px"}}>
@@ -316,7 +330,7 @@ export default function App() {
             </div>
 
             <div style={{marginTop:"20px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:"10px"}}>
-              {[["10 Asset Classes","US Equity (SPY,VNQ), Europe (EZU), India (INDA), China (KWEB), HK (EWH), Gold (GLD), Bonds (TLT), Commodities (DBC), Japan (EWJ)"],["6 Geographic Regions","US, Eurozone, India, China/HK, Japan, Global — each with distinct macro cycles"],["Daily Return Correlation","Computed from Nasdaq daily OHLC data (2019-01-02 to 2026-04-22)."],["Policy Divergence","Fed, ECB, RBI, PBOC, BOJ — 5 central banks, 5 policy cycles"]].map(([t,d])=>(
+              {[["10 Asset Classes","US Equity (SPY,VNQ), Europe (EZU), India (INDA), China (KWEB), HK (EWH), Gold (GLD), Bonds (TLT), Commodities (DBC), Japan (EWJ)"],["6 Geographic Regions","US, Eurozone, India, China/HK, Japan, Global — each with distinct macro cycles"],["Daily Return Correlation",`Computed from Nasdaq daily OHLC data (${dataSummary.firstDate} to ${dataSummary.lastDate}).`],["Policy Divergence","Fed, ECB, RBI, PBOC, BOJ — 5 central banks, 5 policy cycles"]].map(([t,d])=>(
                 <div key={t} style={{background:"#060e1c",border:"1px solid #0a1e32",borderRadius:"8px",padding:"14px"}}>
                   <div style={{fontFamily:"'Syne Mono',monospace",fontSize:"10px",color:"#22c55e",marginBottom:"6px",letterSpacing:".06em"}}>{t}</div>
                   <div style={{fontSize:"11px",color:"#3a5a75",lineHeight:1.6}}>{d}</div>
@@ -421,7 +435,7 @@ export default function App() {
               <div style={{fontFamily:"'Syne Mono',monospace",fontSize:"10px",color:"#1e3a55",letterSpacing:".12em",marginBottom:"6px"}}>INTERNAL RESEARCH MEMORANDUM</div>
               <div style={{fontWeight:800,fontSize:"22px",color:"#f0f6ff",marginBottom:"4px",lineHeight:1.3}}>ETF Selection Rationale — Correlation Analysis Study</div>
               <div style={{fontFamily:"'Syne Mono',monospace",fontSize:"11px",color:"#2d4a65",marginBottom:"32px",paddingBottom:"24px",borderBottom:"1px solid #0a1e32"}}>
-                Prepared for: Portfolio Strategy Review &nbsp;|&nbsp; Date: April 2026 &nbsp;|&nbsp; Data: Nasdaq Daily OHLC (2019-01-02 to 2026-04-22)
+                Prepared for: Portfolio Strategy Review &nbsp;|&nbsp; Date: April 2026 &nbsp;|&nbsp; Data: Nasdaq Daily OHLC ({dataSummary.firstDate} to {dataSummary.lastDate})
               </div>
               <div style={{fontSize:"13px",color:"#7a9ab5",lineHeight:1.9,marginBottom:"28px"}}>
                 The 10 ETFs in this study were selected to <strong style={{color:"#d1d9e6"}}>maximize structural independence of return drivers</strong>. Each product is governed by materially different macroeconomic, policy, and fundamental forces.
@@ -472,7 +486,7 @@ export default function App() {
               <div style={{marginBottom:"28px"}}>
                 <div style={{fontFamily:"'Syne Mono',monospace",fontSize:"11px",color:"#22c55e",letterSpacing:".08em",marginBottom:"12px"}}>DATA SOURCE — NASDAQ (NASDAQ.COM)</div>
                 <div style={{fontSize:"13px",color:"#7a9ab5",lineHeight:1.8,background:"#030810",padding:"16px",borderRadius:"6px",border:"1px solid #0a1a2e"}}>
-                  All daily OHLC (Open, High, Low, Close) price data is fetched directly from <strong style={{color:"#d1d9e6"}}>Nasdaq.com</strong> historical API for each ETF. Data spans <strong style={{color:"#d1d9e6"}}>1,836 trading days</strong> from <strong style={{color:"#d1d9e6"}}>2019-01-02</strong> to <strong style={{color:"#d1d9e6"}}>2026-04-22</strong>. Tooltip and chart both display precise daily date values.
+                  All daily OHLC (Open, High, Low, Close) price data is fetched directly from <strong style={{color:"#d1d9e6"}}>Nasdaq.com</strong> historical API for each ETF. Data spans <strong style={{color:"#d1d9e6"}}>{dataSummary.tradingDays} trading days</strong> from <strong style={{color:"#d1d9e6"}}>{dataSummary.firstDate}</strong> to <strong style={{color:"#d1d9e6"}}>{dataSummary.lastDate}</strong>. Tooltip and chart both display precise daily date values.
                 </div>
               </div>
               <div style={{marginBottom:"28px"}}>
