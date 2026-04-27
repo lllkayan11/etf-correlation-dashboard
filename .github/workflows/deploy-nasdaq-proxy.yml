@@ -62,9 +62,8 @@ jobs:
 
           verify_response=$(curl -sS -H "Authorization: Bearer $CF_API_TOKEN" "https://api.cloudflare.com/client/v4/user/tokens/verify")
           if ! echo "$verify_response" | grep -q '"success":true'; then
-            echo "::error::Cloudflare token verify failed. Please re-save CLOUDFLARE_API_TOKEN with a valid Workers API token."
+            echo "::warning::Cloudflare token verify did not return success=true; proceeding to account/workers access check."
             echo "$verify_response"
-            exit 1
           fi
 
           workers_response=$(curl -sS -H "Authorization: Bearer $CF_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/scripts")
