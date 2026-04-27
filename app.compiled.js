@@ -135,6 +135,7 @@ export default function App() {
   const [proxyBaseUrl, setProxyBaseUrl] = useState("");
   const [symbolSearch, setSymbolSearch] = useState("");
   const [directoryMode, setDirectoryMode] = useState("stored");
+  const [symbolPage, setSymbolPage] = useState(1);
 
   useEffect(() => {
     const loadData = async () => {
@@ -278,15 +279,39 @@ export default function App() {
 
   const storedSymbolSet = useMemo(() => new Set(Object.keys(marketData || {})), [marketData]);
 
-  const filteredSymbolDirectory = useMemo(() => {
+  const DIRECTORY_PAGE_SIZE = 120;
+
+  useEffect(() => {
+    setSymbolPage(1);
+  }, [symbolSearch, directoryMode]);
+
+  const allFilteredSymbolDirectory = useMemo(() => {
     const q = symbolSearch.trim().toLowerCase();
     let base = Array.isArray(symbolLookup) ? symbolLookup : [];
     if (directoryMode === "stored") {
       base = base.filter(r => storedSymbolSet.has(r.symbol));
     }
-    if (!q) return base.slice(0, 120);
-    return base.filter(r => r.symbol.toLowerCase().includes(q) || (r.name || "").toLowerCase().includes(q)).slice(0, 120);
+    if (!q) {
+      if (directoryMode !== "all") return base;
+      if (base.length <= DIRECTORY_PAGE_SIZE) return base;
+      // Show a diversified sample across the full alphabet so it's not only A*.
+      const out = [];
+      const step = base.length / DIRECTORY_PAGE_SIZE;
+      for (let i = 0; i < DIRECTORY_PAGE_SIZE; i++) {
+        const idx = Math.min(base.length - 1, Math.floor(i * step));
+        out.push(base[idx]);
+      }
+      return out;
+    }
+    return base.filter(r => r.symbol.toLowerCase().includes(q) || (r.name || "").toLowerCase().includes(q)).sort((a, b) => a.symbol.localeCompare(b.symbol));
   }, [symbolLookup, symbolSearch, directoryMode, storedSymbolSet]);
+
+  const totalDirectoryPages = useMemo(() => Math.max(1, Math.ceil(allFilteredSymbolDirectory.length / DIRECTORY_PAGE_SIZE)), [allFilteredSymbolDirectory.length]);
+
+  const filteredSymbolDirectory = useMemo(() => {
+    const start = (symbolPage - 1) * DIRECTORY_PAGE_SIZE;
+    return allFilteredSymbolDirectory.slice(start, start + DIRECTORY_PAGE_SIZE);
+  }, [allFilteredSymbolDirectory, symbolPage]);
 
   const buildReturnsByDate = records => {
     const sorted = records.slice().sort((a, b) => a.date.localeCompare(b.date));
@@ -930,6 +955,24 @@ export default function App() {
                 "Stored: ",
                 storedSymbolSet.size,
                 " symbols"
+              ),
+              React.createElement(
+                "span",
+                { style: { fontFamily: "'Syne Mono',monospace", fontSize: "10px", color: "#4a6a85" } },
+                "Page ",
+                symbolPage,
+                "/",
+                totalDirectoryPages
+              ),
+              React.createElement(
+                "button",
+                { className: "range-btn", onClick: () => setSymbolPage(p => Math.max(1, p - 1)), disabled: symbolPage <= 1 },
+                "Prev"
+              ),
+              React.createElement(
+                "button",
+                { className: "range-btn", onClick: () => setSymbolPage(p => Math.min(totalDirectoryPages, p + 1)), disabled: symbolPage >= totalDirectoryPages },
+                "Next"
               )
             ),
             React.createElement("input", {
@@ -943,16 +986,14 @@ export default function App() {
               { style: { display: "flex", gap: "6px", flexWrap: "wrap", maxHeight: "120px", overflowY: "auto" } },
               filteredSymbolDirectory.map(r => {
                 const isStored = storedSymbolSet.has(r.symbol);
-                const canUse = isStored || !!proxyBaseUrl;
                 return React.createElement(
                   "button",
                   {
                     key: `${r.symbol}-${r.name}`,
                     className: "filter-pill",
-                    disabled: !canUse,
                     onClick: () => addSymbolToInput(r.symbol),
                     title: r.name,
-                    style: { opacity: canUse ? 1 : 0.45, cursor: canUse ? "pointer" : "not-allowed" }
+                    style: { opacity: 1, cursor: "pointer" }
                   },
                   "+ ",
                   r.symbol,
