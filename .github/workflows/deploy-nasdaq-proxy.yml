@@ -68,9 +68,8 @@ jobs:
 
           workers_response=$(curl -sS -H "Authorization: Bearer $CF_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/scripts")
           if ! echo "$workers_response" | grep -q '"success":true'; then
-            echo "::error::Token cannot access account workers scripts. Check CLOUDFLARE_ACCOUNT_ID and token account scope."
+            echo "::warning::Token cannot list account workers scripts; proceeding to deploy for authoritative result."
             echo "$workers_response"
-            exit 1
           fi
 
       - name: Deploy Worker
