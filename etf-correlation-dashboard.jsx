@@ -94,6 +94,7 @@ export default function App() {
   const [symbolLookupMap, setSymbolLookupMap] = useState({});
   const [queryResolved, setQueryResolved] = useState([]);
   const [proxyBaseUrl, setProxyBaseUrl] = useState("");
+  const [symbolSearch, setSymbolSearch] = useState("");
 
   useEffect(() => {
     const loadData = async () => {
@@ -110,6 +111,17 @@ export default function App() {
           });
           byTicker[ticker] = rows;
         });
+        try {
+          const cached = JSON.parse(localStorage.getItem("on_demand_nasdaq_cache_v1") || "{}");
+          Object.keys(cached || {}).forEach((t) => {
+            const rows = Array.isArray(cached[t]) ? cached[t] : [];
+            if (rows.length >= 10 && !byTicker[t]) {
+              byTicker[t] = rows;
+            }
+          });
+        } catch (e) {
+          // Ignore malformed local cache and continue.
+        }
         setMarketData(byTicker);
 
         // compute daily return correlation matrix by shared dates
@@ -229,6 +241,15 @@ export default function App() {
     return (row.reduce((a, b) => a + b, 0) / row.length).toFixed(3);
   }, [selected, visibleETFs, corrMatrix]);
 
+  const filteredSymbolDirectory = useMemo(() => {
+    const q = symbolSearch.trim().toLowerCase();
+    const base = Array.isArray(symbolLookup) ? symbolLookup : [];
+    if (!q) return base.slice(0, 120);
+    return base
+      .filter((r) => r.symbol.toLowerCase().includes(q) || (r.name || "").toLowerCase().includes(q))
+      .slice(0, 120);
+  }, [symbolLookup, symbolSearch]);
+
   const buildReturnsByDate = (records) => {
     const sorted = records.slice().sort((a, b) => a.date.localeCompare(b.date));
     const byDate = {};
@@ -297,6 +318,30 @@ export default function App() {
     const records = parseNasdaqRows(rows);
     if (records.length < 10) throw new Error(`Proxy no data for ${ticker}`);
     return records;
+  };
+
+  const cacheFetchedSeries = (ticker, records) => {
+    if (!records || records.length < 10) return;
+    setMarketData((prev) => ({ ...prev, [ticker]: records }));
+    try {
+      const raw = JSON.parse(localStorage.getItem("on_demand_nasdaq_cache_v1") || "{}");
+      raw[ticker] = records;
+      localStorage.setItem("on_demand_nasdaq_cache_v1", JSON.stringify(raw));
+    } catch (e) {
+      // Ignore storage failures (private mode/quota).
+    }
+  };
+
+  const addSymbolToInput = (symbol) => {
+    const current = queryInput
+      .split(",")
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
+    if (current.includes(symbol)) return;
+    if (current.length >= 5) return;
+    const next = [...current, symbol];
+    setQueryInput(next.join(", "));
+    setQueryResolved([]);
   };
 
   const resolveQuerySymbols = (rawInput) => {
@@ -380,11 +425,13 @@ export default function App() {
           const records = await fetchNasdaqViaProxy(t, fromDate);
           seriesByTicker[t] = records;
           sourceByTicker[t] = "Nasdaq via proxy";
+          cacheFetchedSeries(t, records);
         } catch (e) {
           try {
             const records = await fetchNasdaqTicker(t, fromDate);
             seriesByTicker[t] = records;
             sourceByTicker[t] = "Nasdaq direct";
+            cacheFetchedSeries(t, records);
           } catch (e2) {
             throw new Error(`Cannot load ${t} from Nasdaq. Try another symbol or retry later.`);
           }
@@ -631,6 +678,30 @@ export default function App() {
                 <button className="range-btn on" onClick={runCustomCorrelation} disabled={queryLoading} style={{minWidth:"120px"}}>
                   {queryLoading ? "CALCULATING..." : "CALCULATE"}
                 </button>
+              </div>
+
+              <div style={{marginTop:"10px",background:"#030810",border:"1px solid #0a1e32",borderRadius:"8px",padding:"10px 12px"}}>
+                <div style={{fontFamily:"'Syne Mono',monospace",fontSize:"10px",color:"#22c55e",letterSpacing:".06em",marginBottom:"8px"}}>
+                  SYMBOL DIRECTORY (SEARCH STORED CODE/NAME)
+                </div>
+                <input
+                  value={symbolSearch}
+                  onChange={(e)=>setSymbolSearch(e.target.value)}
+                  placeholder="Search symbol or company name..."
+                  style={{width:"100%",background:"#02060d",color:"#d1d9e6",border:"1px solid #1a3858",borderRadius:"6px",padding:"8px 10px",fontFamily:"'Syne Mono',monospace",fontSize:"11px",marginBottom:"8px"}}
+                />
+                <div style={{display:"flex",gap:"6px",flexWrap:"wrap",maxHeight:"120px",overflowY:"auto"}}>
+                  {filteredSymbolDirectory.map((r)=>(
+                    <button
+                      key={`${r.symbol}-${r.name}`}
+                      className="filter-pill"
+                      onClick={()=>addSymbolToInput(r.symbol)}
+                      title={r.name}
+                    >
+                      + {r.symbol}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {queryResolved.length > 0 && (

@@ -10,6 +10,11 @@ export default {
       return json({ error: "Not found" }, 404);
     }
 
+    const cacheKey = new Request(url.toString(), request);
+    const cache = caches.default;
+    const cached = await cache.match(cacheKey);
+    if (cached) return cached;
+
     const symbol = String(url.searchParams.get("symbol") || "").trim().toUpperCase();
     const fromdate = String(url.searchParams.get("fromdate") || "").trim();
     const todate = String(url.searchParams.get("todate") || "2099-12-31").trim();
@@ -43,7 +48,11 @@ export default {
       const payload = await resp.json();
       const rows = (((payload || {}).data || {}).tradesTable || {}).rows || [];
       if (rows.length > 0) {
-        return json({ source: "nasdaq", symbol, assetclass, rows }, 200);
+        const response = json({ source: "nasdaq", symbol, assetclass, rows }, 200, {
+          "Cache-Control": "public, max-age=900",
+        });
+        await cache.put(cacheKey, response.clone());
+        return response;
       }
     }
 
@@ -59,12 +68,13 @@ function corsHeaders() {
   };
 }
 
-function json(obj, status = 200) {
+function json(obj, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(obj), {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       ...corsHeaders(),
+      ...extraHeaders,
     },
   });
 }
