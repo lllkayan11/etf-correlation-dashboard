@@ -2,8 +2,8 @@ name: Daily Nasdaq Refresh
 
 on:
   schedule:
-    # 06:00 Beijing time = 22:00 UTC (previous day)
-    - cron: "0 22 * * *"
+    # 06:00 Beijing time on Monday-Friday = 22:00 UTC on Sunday-Thursday
+    - cron: "0 22 * * 0-4"
   workflow_dispatch:
 
 permissions:
@@ -24,21 +24,55 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests dukpy
+          pip install requests dukpy pandas_market_calendars
+
+      - name: Check US market trading day
+        id: market_day
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          import pandas_market_calendars as mcal
+
+          today_et = datetime.now(ZoneInfo("America/New_York")).date()
+          cal = mcal.get_calendar("NYSE")
+          sched = cal.schedule(start_date=str(today_et), end_date=str(today_et))
+          is_trading_day = not sched.empty
+
+          output_path = os.environ["GITHUB_OUTPUT"]
+          with open(output_path, "a", encoding="utf-8") as f:
+            f.write(f"run_refresh={'true' if is_trading_day else 'false'}\n")
+            f.write(f"today_et={today_et}\n")
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+            with open(summary_path, "a", encoding="utf-8") as f:
+              f.write("## Trading Day Gate\n")
+              f.write(f"- Date (ET): `{today_et}`\n")
+              f.write(f"- NYSE trading day: `{'YES' if is_trading_day else 'NO'}`\n")
+              if not is_trading_day:
+                f.write("- Refresh steps are skipped (weekend/public holiday).\n")
+          PY
 
       - name: Refresh Nasdaq data
+        if: steps.market_day.outputs.run_refresh == 'true'
         run: python fetch_etf_data.py
 
       - name: Refresh Nasdaq symbol lookup
+        if: steps.market_day.outputs.run_refresh == 'true'
         run: python fetch_nasdaq_symbol_lookup.py
 
       - name: Rebuild compiled bundle
+        if: steps.market_day.outputs.run_refresh == 'true'
         run: python compile_jsx.py
 
       - name: Verify Nasdaq data integrity
+        if: steps.market_day.outputs.run_refresh == 'true'
         run: python verify_nasdaq_data.py
 
       - name: Publish refresh summary
+        if: steps.market_day.outputs.run_refresh == 'true'
         run: |
           python - <<'PY'
           import json
@@ -83,6 +117,7 @@ jobs:
           PY
 
       - name: Commit and push if changed
+        if: steps.market_day.outputs.run_refresh == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

@@ -1,5 +1,6 @@
 import json
 import random
+import time
 from pathlib import Path
 
 import requests
@@ -29,9 +30,19 @@ def fetch_nasdaq_rows(symbol, assetclass):
         "limit": 10000,
         "offset": 0,
     }
-    resp = requests.get(url, headers=HEADERS, params=params, timeout=30)
-    resp.raise_for_status()
-    payload = resp.json()
+    last_err = None
+    for _ in range(3):
+        try:
+            resp = requests.get(url, headers=HEADERS, params=params, timeout=30)
+            resp.raise_for_status()
+            payload = resp.json()
+            break
+        except Exception as err:
+            last_err = err
+            time.sleep(1.2)
+    else:
+        raise RuntimeError(f"Failed to fetch {symbol} ({assetclass}) from Nasdaq: {last_err}")
+
     rows = ((payload.get("data") or {}).get("tradesTable") or {}).get("rows", [])
     by_date = {}
     for r in rows:
@@ -52,6 +63,7 @@ def main():
 
     total_checks = 0
     failed = []
+    fetch_errors = []
 
     for symbol in sample_symbols:
         entry = data[symbol]
@@ -59,7 +71,11 @@ def main():
         if len(records) < 10:
             continue
         assetclass = ((entry.get("info") or {}).get("assetclass") or "stocks").lower()
-        remote = fetch_nasdaq_rows(symbol, assetclass)
+        try:
+            remote = fetch_nasdaq_rows(symbol, assetclass)
+        except Exception as err:
+            fetch_errors.append({"symbol": symbol, "error": str(err)})
+            continue
         sample_rows = rng.sample(records[-120:], min(5, len(records[-120:])))
 
         for r in sample_rows:
@@ -81,6 +97,8 @@ def main():
         "sample_symbols": sample_symbols,
         "total_checks": total_checks,
         "failed_checks": len(failed),
+        "fetch_error_count": len(fetch_errors),
+        "fetch_errors": fetch_errors,
         "failures": failed,
     }
     out_path = ROOT / "nasdaq_data_verification_report.json"
@@ -89,9 +107,16 @@ def main():
     print(f"Verification report: {out_path}")
     print(f"Total checks: {total_checks}")
     print(f"Failed checks: {len(failed)}")
+    print(f"Fetch errors: {len(fetch_errors)}")
+    if fetch_errors:
+        for x in fetch_errors[:10]:
+            print(f"- fetch error {x['symbol']}: {x['error']}")
     if failed:
         for x in failed[:10]:
             print(f"- {x['symbol']} {x['date']} local={x['local_close']} nasdaq={x['nasdaq_close']}")
+        raise SystemExit(1)
+    if total_checks == 0:
+        raise SystemExit("No successful verification checks were performed.")
 
 
 if __name__ == "__main__":

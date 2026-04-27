@@ -1,4 +1,5 @@
 import json
+import time
 from pathlib import Path
 
 import requests
@@ -22,9 +23,18 @@ def fetch_page(limit: int, offset: int):
         "offset": offset,
         "download": "true",
     }
-    resp = requests.get(url, headers=HEADERS, params=params, timeout=30)
-    resp.raise_for_status()
-    payload = resp.json()
+    last_err = None
+    for _ in range(3):
+        try:
+            resp = requests.get(url, headers=HEADERS, params=params, timeout=30)
+            resp.raise_for_status()
+            payload = resp.json()
+            break
+        except Exception as err:
+            last_err = err
+            time.sleep(1.2)
+    else:
+        raise RuntimeError(f"Failed Nasdaq screener request: {last_err}")
     data = payload.get("data") or {}
     rows = data.get("rows") or []
     total = data.get("totalRecords") or len(rows)
@@ -36,8 +46,14 @@ def main() -> None:
     offset = 0
     all_rows = []
 
-    rows, total = fetch_page(limit=limit, offset=offset)
-    all_rows.extend(rows)
+    try:
+        rows, total = fetch_page(limit=limit, offset=offset)
+        all_rows.extend(rows)
+    except Exception as err:
+        if OUTPUT_PATH.exists():
+            print(f"Warning: refresh lookup failed, keep existing file: {err}")
+            return
+        raise
 
     symbols = {}
     for row in all_rows:
