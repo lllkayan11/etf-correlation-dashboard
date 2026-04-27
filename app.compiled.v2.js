@@ -134,6 +134,7 @@ export default function App() {
   const [queryResolved, setQueryResolved] = useState([]);
   const [proxyBaseUrl, setProxyBaseUrl] = useState("");
   const [symbolSearch, setSymbolSearch] = useState("");
+  const [directoryMode, setDirectoryMode] = useState("stored");
 
   useEffect(() => {
     const loadData = async () => {
@@ -275,12 +276,17 @@ export default function App() {
     return (row.reduce((a, b) => a + b, 0) / row.length).toFixed(3);
   }, [selected, visibleETFs, corrMatrix]);
 
+  const storedSymbolSet = useMemo(() => new Set(Object.keys(marketData || {})), [marketData]);
+
   const filteredSymbolDirectory = useMemo(() => {
     const q = symbolSearch.trim().toLowerCase();
-    const base = Array.isArray(symbolLookup) ? symbolLookup : [];
+    let base = Array.isArray(symbolLookup) ? symbolLookup : [];
+    if (directoryMode === "stored") {
+      base = base.filter(r => storedSymbolSet.has(r.symbol));
+    }
     if (!q) return base.slice(0, 120);
     return base.filter(r => r.symbol.toLowerCase().includes(q) || (r.name || "").toLowerCase().includes(q)).slice(0, 120);
-  }, [symbolLookup, symbolSearch]);
+  }, [symbolLookup, symbolSearch, directoryMode, storedSymbolSet]);
 
   const buildReturnsByDate = records => {
     const sorted = records.slice().sort((a, b) => a.date.localeCompare(b.date));
@@ -348,6 +354,18 @@ export default function App() {
     const records = parseNasdaqRows(rows);
     if (records.length < 10) throw new Error(`Proxy no data for ${ticker}`);
     return records;
+  };
+
+  const fetchWithRetry = async (fn, times = 2) => {
+    let lastError = null;
+    for (let i = 0; i < times; i++) {
+      try {
+        return await fn();
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError || new Error("Fetch failed");
   };
 
   const cacheFetchedSeries = (ticker, records) => {
@@ -433,34 +451,43 @@ export default function App() {
     setQueryLoading(true);
     try {
       const fromDate = getRangeFrom(queryRange);
-      const seriesByTicker = {};
-      const sourceByTicker = {};
-      for (const t of unique) {
+      const results = await Promise.all(unique.map(async t => {
         const localRows = marketData[t];
         if (localRows && localRows.length >= 10) {
           const filteredLocal = localRows.filter(r => r.date >= fromDate).map(r => ({ date: r.date, close: r.close }));
           if (filteredLocal.length >= 10) {
-            seriesByTicker[t] = filteredLocal;
-            sourceByTicker[t] = "Local Nasdaq cache";
-            continue;
+            return { ticker: t, records: filteredLocal, source: "Local Nasdaq cache" };
           }
         }
-        try {
-          const records = await fetchNasdaqViaProxy(t, fromDate);
-          seriesByTicker[t] = records;
-          sourceByTicker[t] = "Nasdaq via proxy";
-          cacheFetchedSeries(t, records);
-        } catch (e) {
+
+        if (proxyBaseUrl) {
           try {
-            const records = await fetchNasdaqTicker(t, fromDate);
-            seriesByTicker[t] = records;
-            sourceByTicker[t] = "Nasdaq direct";
+            const records = await fetchWithRetry(() => fetchNasdaqViaProxy(t, fromDate), 2);
             cacheFetchedSeries(t, records);
-          } catch (e2) {
-            throw new Error(`Cannot load ${t} from Nasdaq. Try another symbol or retry later.`);
+            return { ticker: t, records, source: "Nasdaq via proxy" };
+          } catch (e) {
+            // Continue to direct Nasdaq fallback.
           }
         }
-      }
+
+        try {
+          const records = await fetchWithRetry(() => fetchNasdaqTicker(t, fromDate), 2);
+          cacheFetchedSeries(t, records);
+          return { ticker: t, records, source: "Nasdaq direct" };
+        } catch (e2) {
+          if (!proxyBaseUrl) {
+            throw new Error(`Cannot load ${t} from Nasdaq in browser-only mode. Please configure proxy URL in proxy-config.json, or pick symbols from stored directory.`);
+          }
+          throw new Error(`Cannot load ${t} from Nasdaq. Try another symbol or retry later.`);
+        }
+      }));
+
+      const seriesByTicker = {};
+      const sourceByTicker = {};
+      results.forEach(x => {
+        seriesByTicker[x.ticker] = x.records;
+        sourceByTicker[x.ticker] = x.source;
+      });
 
       const returnsByTicker = {};
       unique.forEach(t => {
@@ -884,6 +911,27 @@ export default function App() {
               { style: { fontFamily: "'Syne Mono',monospace", fontSize: "10px", color: "#22c55e", letterSpacing: ".06em", marginBottom: "8px" } },
               "SYMBOL DIRECTORY (SEARCH STORED CODE/NAME)"
             ),
+            React.createElement(
+              "div",
+              { style: { display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center", flexWrap: "wrap" } },
+              React.createElement(
+                "button",
+                { className: `range-btn ${directoryMode === "stored" ? "on" : ""}`, onClick: () => setDirectoryMode("stored") },
+                "Stored Only"
+              ),
+              React.createElement(
+                "button",
+                { className: `range-btn ${directoryMode === "all" ? "on" : ""}`, onClick: () => setDirectoryMode("all") },
+                "All Lookup"
+              ),
+              React.createElement(
+                "span",
+                { style: { fontFamily: "'Syne Mono',monospace", fontSize: "10px", color: "#4a6a85" } },
+                "Stored: ",
+                storedSymbolSet.size,
+                " symbols"
+              )
+            ),
             React.createElement("input", {
               value: symbolSearch,
               onChange: e => setSymbolSearch(e.target.value),
@@ -893,17 +941,24 @@ export default function App() {
             React.createElement(
               "div",
               { style: { display: "flex", gap: "6px", flexWrap: "wrap", maxHeight: "120px", overflowY: "auto" } },
-              filteredSymbolDirectory.map(r => React.createElement(
-                "button",
-                {
-                  key: `${r.symbol}-${r.name}`,
-                  className: "filter-pill",
-                  onClick: () => addSymbolToInput(r.symbol),
-                  title: r.name
-                },
-                "+ ",
-                r.symbol
-              ))
+              filteredSymbolDirectory.map(r => {
+                const isStored = storedSymbolSet.has(r.symbol);
+                const canUse = isStored || !!proxyBaseUrl;
+                return React.createElement(
+                  "button",
+                  {
+                    key: `${r.symbol}-${r.name}`,
+                    className: "filter-pill",
+                    disabled: !canUse,
+                    onClick: () => addSymbolToInput(r.symbol),
+                    title: r.name,
+                    style: { opacity: canUse ? 1 : 0.45, cursor: canUse ? "pointer" : "not-allowed" }
+                  },
+                  "+ ",
+                  r.symbol,
+                  isStored ? "" : " (on-demand)"
+                );
+              })
             )
           ),
           queryResolved.length > 0 && React.createElement(
