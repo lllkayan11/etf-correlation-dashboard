@@ -57,10 +57,31 @@ jobs:
             echo "::warning::Cloudflare token verify did not return success=true; deployment step will provide authoritative error details."
           fi
 
-      - name: Deploy Worker
-        working-directory: serverless/cloudflare-nasdaq-proxy
+      - name: Cloudflare preflight (account + workers access)
         env:
-          WRANGLER_LOG: debug
+          CF_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          npm i -g wrangler@4
-          wrangler deploy --config wrangler.toml --non-interactive
+          set -euo pipefail
+
+          verify_response=$(curl -sS -H "Authorization: Bearer $CF_API_TOKEN" "https://api.cloudflare.com/client/v4/user/tokens/verify")
+          if ! echo "$verify_response" | grep -q '"success":true'; then
+            echo "::error::Cloudflare token verify failed. Please re-save CLOUDFLARE_API_TOKEN with a valid Workers API token."
+            echo "$verify_response"
+            exit 1
+          fi
+
+          workers_response=$(curl -sS -H "Authorization: Bearer $CF_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/scripts")
+          if ! echo "$workers_response" | grep -q '"success":true'; then
+            echo "::error::Token cannot access account workers scripts. Check CLOUDFLARE_ACCOUNT_ID and token account scope."
+            echo "$workers_response"
+            exit 1
+          fi
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: serverless/cloudflare-nasdaq-proxy
+          command: deploy --config wrangler.toml --non-interactive
