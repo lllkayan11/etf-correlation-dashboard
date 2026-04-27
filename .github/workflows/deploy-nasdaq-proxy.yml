@@ -45,29 +45,16 @@ jobs:
           CF_ACCOUNT_ID_FALLBACK: ${{ secrets.CF_ACCOUNT_ID }}
         run: |
           set +e
-          tokens=()
-          accounts=()
-          [ -n "$CF_API_TOKEN_PRIMARY" ] && tokens+=("$CF_API_TOKEN_PRIMARY")
-          [ -n "$CF_API_TOKEN_FALLBACK" ] && tokens+=("$CF_API_TOKEN_FALLBACK")
-          [ -n "$CF_ACCOUNT_ID_PRIMARY" ] && accounts+=("$CF_ACCOUNT_ID_PRIMARY")
-          [ -n "$CF_ACCOUNT_ID_FALLBACK" ] && accounts+=("$CF_ACCOUNT_ID_FALLBACK")
+          token="${CF_API_TOKEN_PRIMARY:-$CF_API_TOKEN_FALLBACK}"
+          account="${CF_ACCOUNT_ID_PRIMARY:-$CF_ACCOUNT_ID_FALLBACK}"
 
-          selected=0
-          for token in "${tokens[@]}"; do
-            for account in "${accounts[@]}"; do
-              response=$(curl -sS -H "Authorization: Bearer $token" "https://api.cloudflare.com/client/v4/accounts/$account/workers/scripts")
-              if echo "$response" | grep -q '"success":true'; then
-                echo "CLOUDFLARE_API_TOKEN=$token" >> "$GITHUB_ENV"
-                echo "CLOUDFLARE_ACCOUNT_ID=$account" >> "$GITHUB_ENV"
-                selected=1
-                break 2
-              fi
-            done
-          done
+          echo "CLOUDFLARE_API_TOKEN=$token" >> "$GITHUB_ENV"
+          echo "CLOUDFLARE_ACCOUNT_ID=$account" >> "$GITHUB_ENV"
 
-          if [ "$selected" -ne 1 ]; then
-            echo "::error::No valid Cloudflare token/account_id combination found in CLOUDFLARE_* or CF_* secrets."
-            exit 1
+          # Token verification is informative only. Some scopes can deploy but fail list/read probes.
+          verify_response=$(curl -sS -H "Authorization: Bearer $token" "https://api.cloudflare.com/client/v4/user/tokens/verify")
+          if ! echo "$verify_response" | grep -q '"success":true'; then
+            echo "::warning::Cloudflare token verify did not return success=true; deployment step will provide authoritative error details."
           fi
 
       - name: Deploy Worker
