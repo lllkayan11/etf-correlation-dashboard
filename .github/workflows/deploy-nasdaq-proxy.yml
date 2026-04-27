@@ -24,7 +24,7 @@ jobs:
       - name: Validate Cloudflare secrets
         env:
           CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_ACCOUNT_ID: c1659ca937b3ddd76e08a250c40dfcda
         run: |
           if [ -z "$CF_API_TOKEN" ]; then
             echo "::error::Missing Cloudflare API token. Set CLOUDFLARE_API_TOKEN in repository secrets."
@@ -38,7 +38,7 @@ jobs:
       - name: Resolve Cloudflare credentials
         env:
           CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_ACCOUNT_ID: c1659ca937b3ddd76e08a250c40dfcda
         run: |
           set +e
           token="${CF_API_TOKEN}"
