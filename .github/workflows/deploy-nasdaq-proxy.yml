@@ -49,7 +49,7 @@ jobs:
 
           # Token verification is informative only. Some scopes can deploy but fail list/read probes.
           verify_response=$(curl -sS -H "Authorization: Bearer $token" "https://api.cloudflare.com/client/v4/user/tokens/verify")
-          if ! echo "$verify_response" | grep -q '"success":true'; then
+          if ! echo "$verify_response" | grep -Eq '"success":[[:space:]]*true'; then
             echo "::warning::Cloudflare token verify did not return success=true; deployment step will provide authoritative error details."
           fi
 
@@ -61,13 +61,13 @@ jobs:
           set -euo pipefail
 
           verify_response=$(curl -sS -H "Authorization: Bearer $CF_API_TOKEN" "https://api.cloudflare.com/client/v4/user/tokens/verify")
-          if ! echo "$verify_response" | grep -q '"success":true'; then
+          if ! echo "$verify_response" | grep -Eq '"success":[[:space:]]*true'; then
             echo "::warning::Cloudflare token verify did not return success=true; proceeding to account/workers access check."
             echo "$verify_response"
           fi
 
           workers_response=$(curl -sS -H "Authorization: Bearer $CF_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/scripts")
-          if ! echo "$workers_response" | grep -q '"success":true'; then
+          if ! echo "$workers_response" | grep -Eq '"success":[[:space:]]*true'; then
             echo "::warning::Token cannot list account workers scripts; proceeding to deploy for authoritative result."
             echo "$workers_response"
           fi
@@ -78,4 +78,4 @@ jobs:
           apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: serverless/cloudflare-nasdaq-proxy
-          command: deploy --config wrangler.toml --non-interactive
+          command: deploy --config wrangler.toml
